@@ -63,5 +63,5 @@ PoseFinder is an iOS application that leverages Core ML and Vision frameworks to
 
 | Feature | Preview |
 |---------|---------|
-| **Pose Estimation** | <img src="Documentation/rvitp-07mns.gif" width="300"> |
+| **Pose Estimation** | <img src="Documentation/rvitp-07mns.gif" width="500"> |
 
