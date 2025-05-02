@@ -1,85 +1,81 @@
 
-## Edited version originally from here:
-# https://github.com/iwyoo/tf-bilinear_sampler/blob/master/bilinear_sampler.py
-
-import tensorflow as tf
+import torch
+import torch.nn.functional as F
 
 def bilinear_sampler(x, v):
-
-  def _get_grid_array(N, H, W, h, w):
-    N_i = tf.range(N)
-    H_i = tf.range(h+1, h+H+1)
-    W_i = tf.range(w+1, w+W+1)
-    n, h, w, = tf.meshgrid(N_i, H_i, W_i, indexing='ij')
-    n = tf.expand_dims(n, axis=3) # [N, H, W, 1]
-    h = tf.expand_dims(h, axis=3) # [N, H, W, 1]
-    w = tf.expand_dims(w, axis=3) # [N, H, W, 1]
-    n = tf.cast(n, tf.float32) # [N, H, W, 1]
-    h = tf.cast(h, tf.float32) # [N, H, W, 1]
-    w = tf.cast(w, tf.float32) # [N, H, W, 1]
-
-    return n, h, w
-
-  shape = tf.shape(x) # TRY : Dynamic shape
-  N = shape[0]
-  H_ = H = shape[1]
-  W_ = W = shape[2]
-  h = w = 0
-
-  
-  x = tf.pad(x,
-    ((0,0), (1,1), (1,1), (0,0)), mode='CONSTANT')
-  
-  vx, vy = tf.split(v, 2, axis=3)
-  
-
-  n, h, w = _get_grid_array(N, H, W, h, w) # [N, H, W, 3]
-
-  vx0 = tf.floor(vx)
-  vy0 = tf.floor(vy)
-  vx1 = tf.ceil(vx)
-  vy1 = tf.ceil(vy) # [N, H, W, 1]
-
-  iy0 = vy0 + h
-  iy1 = vy1 + h
-  ix0 = vx0 + w
-  ix1 = vx1 + w
-
-  H_f = tf.cast(H_, tf.float32)
-  W_f = tf.cast(W_, tf.float32)
-  mask = tf.less(ix0, 1)
-  mask = tf.logical_or(mask, tf.less(iy0, 1))
-  mask = tf.logical_or(mask, tf.greater(ix1, W_f))
-  mask = tf.logical_or(mask, tf.greater(iy1, H_f))
-
-  iy0 = tf.where(mask, tf.zeros_like(iy0), iy0)
-  iy1 = tf.where(mask, tf.zeros_like(iy1), iy1)
-  ix0 = tf.where(mask, tf.zeros_like(ix0), ix0)
-  ix1 = tf.where(mask, tf.zeros_like(ix1), ix1)
-
-
-  i00 = tf.concat([n, iy0, ix0], 3)
-  i01 = tf.concat([n, iy1, ix0], 3)
-  i10 = tf.concat([n, iy0, ix1], 3)
-  i11 = tf.concat([n, iy1, ix1], 3) # [N, H, W, 3]
-  i00 = tf.cast(i00, tf.int32)
-  i01 = tf.cast(i01, tf.int32)
-  i10 = tf.cast(i10, tf.int32)
-  i11 = tf.cast(i11, tf.int32)
-
-  x00 = tf.gather_nd(x, i00)
-  x01 = tf.gather_nd(x, i01)
-  x10 = tf.gather_nd(x, i10)
-  x11 = tf.gather_nd(x, i11)
-
-  dx = tf.cast(vx - vx0, tf.float32)
-  dy = tf.cast(vy - vy0, tf.float32)
-  
-  w00 = (1.-dx) * (1.-dy)
-  w01 = (1.-dx) * dy
-  w10 = dx * (1.-dy)
-  w11 = dx * dy
-  
-  output = tf.add_n([w00*x00, w01*x01, w10*x10, w11*x11])
-
-  return output
+    """
+    PyTorch implementation of bilinear sampling
+    Args:
+        x: input feature map [N, H, W, C] (PyTorch typically uses [N, C, H, W])
+        v: flow field [N, H, W, 2] (offset in x and y directions)
+    Returns:
+        sampled features [N, H, W, C]
+    """
+    # Convert input to NHWC if it's in NCHW format
+    if x.dim() == 4 and x.size(1) != x.size(-1):
+        x = x.permute(0, 2, 3, 1)  # NCHW -> NHWC
+    
+    # Pad the input (same as TF's padding)
+    x = F.pad(x, (0, 0, 1, 1, 1, 1), mode='constant', value=0)
+    
+    N, H, W, C = x.size()
+    device = x.device
+    
+    # Split flow field into x and y components
+    vx, vy = torch.split(v, 1, dim=-1)  # each becomes [N, H, W, 1]
+    
+    # Generate base grid indices
+    n = torch.arange(N, device=device).view(N, 1, 1, 1).float()
+    h = torch.arange(1, H+1, device=device).view(1, H, 1, 1).float()  # +1 for padding
+    w = torch.arange(1, W+1, device=device).view(1, 1, W, 1).float()  # +1 for padding
+    
+    # Calculate the four neighboring points
+    vx0 = torch.floor(vx)
+    vy0 = torch.floor(vy)
+    vx1 = torch.ceil(vx)
+    vy1 = torch.ceil(vy)
+    
+    # Calculate indices
+    iy0 = vy0 + h
+    iy1 = vy1 + h
+    ix0 = vx0 + w
+    ix1 = vx1 + w
+    
+    # Create mask for out-of-bound indices
+    mask = (ix0 < 1) | (iy0 < 1) | (ix1 > W) | (iy1 > H)
+    mask = mask.squeeze(-1)
+    
+    # Clamp indices
+    iy0 = torch.where(mask, torch.zeros_like(iy0), iy0)
+    iy1 = torch.where(mask, torch.zeros_like(iy1), iy1)
+    ix0 = torch.where(mask, torch.zeros_like(ix0), ix0)
+    ix1 = torch.where(mask, torch.zeros_like(ix1), ix1)
+    
+    # Create index tensors
+    i00 = torch.cat([n.expand_as(ix0), iy0, ix0], dim=-1).long()
+    i01 = torch.cat([n.expand_as(ix0), iy1, ix0], dim=-1).long()
+    i10 = torch.cat([n.expand_as(ix0), iy0, ix1], dim=-1).long()
+    i11 = torch.cat([n.expand_as(ix0), iy1, ix1], dim=-1).long()
+    
+    # Gather values
+    x00 = x.gather(1, i00[..., 1:2]).gather(2, i00[..., 2:3])
+    x01 = x.gather(1, i01[..., 1:2]).gather(2, i01[..., 2:3])
+    x10 = x.gather(1, i10[..., 1:2]).gather(2, i10[..., 2:3])
+    x11 = x.gather(1, i11[..., 1:2]).gather(2, i11[..., 2:3])
+    
+    # Calculate weights
+    dx = (vx - vx0).float()
+    dy = (vy - vy0).float()
+    
+    w00 = (1.-dx) * (1.-dy)
+    w01 = (1.-dx) * dy
+    w10 = dx * (1.-dy)
+    w11 = dx * dy
+    
+    # Weighted sum
+    output = w00*x00 + w01*x01 + w10*x10 + w11*x11
+    
+    # Apply mask (set out-of-bound values to 0)
+    output = torch.where(mask.unsqueeze(-1), torch.zeros_like(output), output)
+    
+    return output
