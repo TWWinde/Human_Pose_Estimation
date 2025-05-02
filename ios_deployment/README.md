@@ -3,7 +3,7 @@
 ## Overview
 PoseFinder is an iOS application that leverages Core ML and Vision frameworks to perform real-time human pose estimation using the PoseNet model. The app detects and visualizes human body joints (keypoints) in images or live camera feeds.
 
-<img src="https://sigmoidal.ai/wp-content/uploads/2023/07/Roberto-Carlos-Pose-Estimation-2.png" width="400"> 
+<img src="Documentation/1_DTaPdSzIw4rMmD-6hO15rQ.png" width="700"> 
 
 ## Project Structure
 
