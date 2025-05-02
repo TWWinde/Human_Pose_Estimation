@@ -5,6 +5,14 @@ PoseFinder is an iOS application that leverages Core ML and Vision frameworks to
 
 <img src="Documentation/1_DTaPdSzIw4rMmD-6hO15rQ.png" width="700"> 
 
+
+## Demon
+
+| Feature | Preview |
+|---------|---------|
+| **Pose Estimation** | <img src="Documentation/rvitp-07mns.gif" width="500"> |
+
+
 ## Project Structure
 
 ### ios_deployment
@@ -59,9 +67,4 @@ PoseFinder is an iOS application that leverages Core ML and Vision frameworks to
 - iOS 14+
 - A12+ chip recommended
 
-## Demon
-
-| Feature | Preview |
-|---------|---------|
-| **Pose Estimation** | <img src="Documentation/rvitp-07mns.gif" width="500"> |
 
